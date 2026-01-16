@@ -16,12 +16,10 @@
  * - POST /:id/tags            - Add tags to relation
  * - DELETE /:id               - Delete relation
  */
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { relationsService } from './relations.service.js';
 import {
   QueryRelationsSchema,
-  CorridorQuerySchema,
-  GraphQuerySchema,
   UpsertRelationSchema,
   type QueryRelationsInput,
   type GraphQueryInput,
