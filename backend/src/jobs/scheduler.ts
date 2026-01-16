@@ -1,7 +1,9 @@
 /**
  * Job Scheduler
- * Runs periodic tasks (score recalculations, bundle detection, etc.)
+ * Runs periodic tasks (indexer, score recalculations, bundle detection, etc.)
  */
+import { env } from '../config/env.js';
+import { EthereumRpc, syncERC20Transfers, getSyncStatus } from '../onchain/ethereum/index.js';
 
 interface ScheduledJob {
   name: string;
@@ -44,25 +46,32 @@ class Scheduler {
     const job = this.jobs.get(name);
     if (!job) return;
 
-    const timer = setInterval(async () => {
-      if (job.running) {
-        console.log(`[Scheduler] Job ${name} still running, skipping`);
-        return;
-      }
+    // Run immediately first time
+    this.runJob(job);
 
-      job.running = true;
-      try {
-        await job.handler();
-        job.lastRun = new Date();
-      } catch (err) {
-        console.error(`[Scheduler] Job ${name} failed:`, err);
-      } finally {
-        job.running = false;
-      }
-    }, job.interval);
-
+    const timer = setInterval(() => this.runJob(job), job.interval);
     this.timers.set(name, timer);
     console.log(`[Scheduler] Job started: ${name}`);
+  }
+
+  /**
+   * Run a job
+   */
+  private async runJob(job: ScheduledJob): Promise<void> {
+    if (job.running) {
+      console.log(`[Scheduler] Job ${job.name} still running, skipping`);
+      return;
+    }
+
+    job.running = true;
+    try {
+      await job.handler();
+      job.lastRun = new Date();
+    } catch (err) {
+      console.error(`[Scheduler] Job ${job.name} failed:`, err);
+    } finally {
+      job.running = false;
+    }
   }
 
   /**
@@ -102,12 +111,49 @@ class Scheduler {
 
 export const scheduler = new Scheduler();
 
+// Global RPC instance (initialized in registerDefaultJobs)
+let ethereumRpc: EthereumRpc | null = null;
+
+/**
+ * Get Ethereum RPC instance
+ */
+export function getEthereumRpc(): EthereumRpc | null {
+  return ethereumRpc;
+}
+
 /**
  * Register default jobs
  * Call this after DB connection
  */
 export function registerDefaultJobs(): void {
-  // Example jobs (uncomment when services are ready)
+  // ========== ERC-20 INDEXER JOB ==========
+  if (env.INDEXER_ENABLED && env.INFURA_RPC_URL) {
+    ethereumRpc = new EthereumRpc(env.INFURA_RPC_URL);
+
+    scheduler.register('erc20-indexer', env.INDEXER_INTERVAL_MS, async () => {
+      if (!ethereumRpc) return;
+      
+      try {
+        const result = await syncERC20Transfers(ethereumRpc);
+        
+        // Log progress periodically
+        if (result.logsCount > 0) {
+          console.log(
+            `[ERC20 Indexer] Synced blocks ${result.fromBlock}-${result.toBlock}: ` +
+            `${result.newLogsCount} new logs (${result.duration}ms)`
+          );
+        }
+      } catch (err) {
+        console.error('[ERC20 Indexer] Sync failed:', err);
+      }
+    });
+
+    console.log('[Scheduler] ERC-20 Indexer job registered');
+  } else {
+    console.log('[Scheduler] ERC-20 Indexer disabled (no INFURA_RPC_URL or INDEXER_ENABLED=false)');
+  }
+
+  // ========== FUTURE JOBS ==========
 
   // scheduler.register('recalculate-scores', 60_000, async () => {
   //   // await scoresService.recalculateAll();
@@ -121,5 +167,43 @@ export function registerDefaultJobs(): void {
   //   // await transfersService.cleanupOld();
   // });
 
-  console.log('[Scheduler] Default jobs registered (none active yet)');
+  console.log('[Scheduler] Default jobs registered');
+}
+
+/**
+ * Get indexer status (for API)
+ */
+export async function getIndexerStatus(): Promise<{
+  enabled: boolean;
+  rpcUrl: string | null;
+  syncStatus: {
+    syncedBlock: number;
+    latestBlock: number;
+    blocksBehind: number;
+    totalLogs: number;
+  } | null;
+}> {
+  if (!ethereumRpc || !env.INDEXER_ENABLED) {
+    return {
+      enabled: false,
+      rpcUrl: null,
+      syncStatus: null,
+    };
+  }
+
+  try {
+    const syncStatus = await getSyncStatus(ethereumRpc);
+    return {
+      enabled: true,
+      rpcUrl: env.INFURA_RPC_URL ? '[configured]' : null,
+      syncStatus,
+    };
+  } catch (err) {
+    console.error('[Scheduler] Failed to get indexer status:', err);
+    return {
+      enabled: true,
+      rpcUrl: env.INFURA_RPC_URL ? '[configured]' : null,
+      syncStatus: null,
+    };
+  }
 }
