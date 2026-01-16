@@ -85,7 +85,7 @@ export class RelationsRepository {
    * Find relation by ID
    */
   async findById(id: string): Promise<IRelation | null> {
-    return RelationModel.findById(id).lean();
+    return RelationModel.findById(id).lean<IRelation>();
   }
 
   /**
@@ -97,7 +97,7 @@ export class RelationsRepository {
     fromType: EntityType,
     toType: EntityType
   ): Promise<IRelation | null> {
-    return RelationModel.findOne({ from, to, fromType, toType }).lean();
+    return RelationModel.findOne({ from, to, fromType, toType }).lean<IRelation>();
   }
 
   /**
@@ -111,7 +111,7 @@ export class RelationsRepository {
       ],
     })
       .sort({ densityScore: -1 })
-      .lean();
+      .lean<IRelation[]>();
   }
 
   /**
