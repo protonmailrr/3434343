@@ -90,13 +90,13 @@ function determineSignalType(
     if (newType === 'accumulation') {
       return 'accumulation_start';
     }
-    if (prevType === 'accumulation' && newType !== 'accumulation') {
-      return 'accumulation_end';
-    }
     if (newType === 'distribution') {
       return 'distribution_start';
     }
-    if (prevType === 'distribution' && newType !== 'distribution') {
+    if (prevType === 'accumulation') {
+      return 'accumulation_end';
+    }
+    if (prevType === 'distribution') {
       return 'distribution_end';
     }
     if (newType === 'rotation' || prevType === 'rotation') {
