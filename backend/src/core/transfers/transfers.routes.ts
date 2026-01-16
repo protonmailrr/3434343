@@ -17,10 +17,6 @@
 import type { FastifyInstance } from 'fastify';
 import { transfersService, formatTransfer } from './transfers.service.js';
 import {
-  QueryByAddressSchema,
-  QueryByAssetSchema,
-  QueryCorridorSchema,
-  NetflowQuerySchema,
   type QueryByAddressInput,
   type QueryByAssetInput,
 } from './transfers.schema.js';
