@@ -148,13 +148,14 @@ async function processBundleForSignals(
     // Generate "new corridor" signal for new high-confidence bundles
     if (bundle.confidence >= THRESHOLDS.MIN_CONFIDENCE && bundle.intensityScore > 0.5) {
       const entityId = `${bundle.from}:${bundle.to}`;
+      const dedupMinutes = SIGNAL_DEDUP_INTERVALS['new_corridor'] ?? DEFAULT_DEDUP_MINUTES;
       
       // Check for duplicate
       const exists = await signalsRepository.existsRecent(
         entityId,
         'new_corridor',
         bundle.window,
-        THRESHOLDS.DEDUP_WINDOW_MINUTES
+        dedupMinutes
       );
 
       if (!exists) {
