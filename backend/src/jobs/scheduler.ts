@@ -7,6 +7,7 @@ import { EthereumRpc, syncERC20Transfers, getSyncStatus } from '../onchain/ether
 import { buildTransfersFromERC20, getBuildStatus } from './build_transfers.job.js';
 import { buildRelations, getBuildRelationsStatus } from './build_relations.job.js';
 import { buildBundles, getBuildBundlesStatus } from './build_bundles.job.js';
+import { buildSignals, getBuildSignalsStatus } from './build_signals.job.js';
 
 interface ScheduledJob {
   name: string;
