@@ -126,11 +126,6 @@ export function classifyBundleType(
     // Keep as 0
   }
 
-  const totalVolume = forwardVolume + reverseVolume;
-  const _volumeRatio = totalVolume > 0n 
-    ? Number(forwardVolume * 100n / totalVolume) / 100 
-    : 0.5;
-
   // Check for WASH TRADING first (most suspicious)
   if (forwardCount > 0 && reverseCount > 0) {
     const volumeDiff = forwardVolume > reverseVolume 
