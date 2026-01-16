@@ -228,7 +228,7 @@ export class RelationsRepository {
       id,
       { $set: data },
       { new: true }
-    ).lean();
+    ).lean<IRelation>();
   }
 
   /**
@@ -239,7 +239,7 @@ export class RelationsRepository {
       id,
       { $addToSet: { tags: { $each: tags } } },
       { new: true }
-    ).lean();
+    ).lean<IRelation>();
   }
 
   /**
@@ -283,7 +283,7 @@ export class RelationsRepository {
     // Merge tags
     const tags = [...new Set([...(existing.tags || []), ...(data.tags || [])])];
 
-    return RelationModel.findByIdAndUpdate(
+    const updated = await RelationModel.findByIdAndUpdate(
       existing._id,
       {
         $set: {
@@ -297,7 +297,9 @@ export class RelationsRepository {
         },
       },
       { new: true }
-    ).lean() as Promise<IRelation>;
+    ).lean<IRelation>();
+
+    return updated as IRelation;
   }
 
   /**
