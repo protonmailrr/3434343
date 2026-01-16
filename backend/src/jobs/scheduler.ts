@@ -154,6 +154,28 @@ export function registerDefaultJobs(): void {
     console.log('[Scheduler] ERC-20 Indexer disabled (no INFURA_RPC_URL or INDEXER_ENABLED=false)');
   }
 
+  // ========== BUILD TRANSFERS JOB (L1 → L2) ==========
+  if (env.INDEXER_ENABLED) {
+    // Run slightly after indexer to ensure logs are available
+    const buildInterval = env.INDEXER_INTERVAL_MS + 5000; // 5 seconds after indexer
+    
+    scheduler.register('build-transfers', buildInterval, async () => {
+      try {
+        const result = await buildTransfersFromERC20();
+        
+        if (result.processed > 0) {
+          console.log(
+            `[Build Transfers] Created ${result.created} transfers from ${result.processed} logs (${result.duration}ms)`
+          );
+        }
+      } catch (err) {
+        console.error('[Build Transfers] Job failed:', err);
+      }
+    });
+
+    console.log('[Scheduler] Build Transfers job registered');
+  }
+
   // ========== FUTURE JOBS ==========
 
   // scheduler.register('recalculate-scores', 60_000, async () => {
