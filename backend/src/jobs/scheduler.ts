@@ -314,6 +314,12 @@ export async function getIndexerStatus(): Promise<{
     unacknowledged: number;
     byType: Record<string, number>;
   } | null;
+  scoresStatus: {
+    totalScores: number;
+    byTier: Record<string, number>;
+    avgComposite: number;
+    lastCalculated: string | null;
+  } | null;
 }> {
   if (!ethereumRpc || !env.INDEXER_ENABLED) {
     return {
@@ -324,16 +330,18 @@ export async function getIndexerStatus(): Promise<{
       relationsStatus: null,
       bundlesStatus: null,
       signalsStatus: null,
+      scoresStatus: null,
     };
   }
 
   try {
-    const [syncStatus, buildStatus, relationsStatus, bundlesStatus, signalsStatus] = await Promise.all([
+    const [syncStatus, buildStatus, relationsStatus, bundlesStatus, signalsStatus, scoresStatus] = await Promise.all([
       getSyncStatus(ethereumRpc),
       getBuildStatus(),
       getBuildRelationsStatus(),
       getBuildBundlesStatus(),
       getBuildSignalsStatus(),
+      getBuildScoresStatus(),
     ]);
 
     return {
