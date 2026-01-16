@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ZodError, ZodSchema } from 'zod';
 import { ValidationError } from '../common/errors.js';
 

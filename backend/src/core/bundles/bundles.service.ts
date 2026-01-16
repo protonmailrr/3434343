@@ -22,8 +22,7 @@ import {
 import { 
   IBundle, 
   BundleType, 
-  BundleWindow,
-  BundleChain
+  BundleWindow
 } from './bundles.model.js';
 import { IRelation } from '../relations/relations.model.js';
 
