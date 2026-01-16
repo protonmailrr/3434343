@@ -339,7 +339,7 @@ export class RelationsService {
   async addTags(id: string, tags: string[]): Promise<IRelation> {
     const relation = await relationsRepository.addTags(id, tags);
     if (!relation) {
-      throw new AppError('NOT_FOUND', 'Relation not found', 404);
+      throw new AppError('Relation not found', 404, 'NOT_FOUND');
     }
     return relation;
   }
@@ -350,7 +350,7 @@ export class RelationsService {
   async delete(id: string): Promise<void> {
     const deleted = await relationsRepository.delete(id);
     if (!deleted) {
-      throw new AppError('NOT_FOUND', 'Relation not found', 404);
+      throw new AppError('Relation not found', 404, 'NOT_FOUND');
     }
   }
 
