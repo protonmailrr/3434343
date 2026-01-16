@@ -112,7 +112,7 @@ export async function syncERC20Transfers(rpc: EthereumRpc): Promise<SyncResult> 
 
   // Calculate block range
   const fromBlock = syncedBlock + 1;
-  const toBlock = Math.min(fromBlock + MAX_BLOCKS_PER_BATCH - 1, latestBlock);
+  let toBlock = Math.min(fromBlock + MAX_BLOCKS_PER_BATCH - 1, latestBlock);
 
   // Nothing to sync
   if (fromBlock > latestBlock) {
@@ -127,12 +127,47 @@ export async function syncERC20Transfers(rpc: EthereumRpc): Promise<SyncResult> 
 
   console.log(`[ERC20 Indexer] Syncing blocks ${fromBlock} to ${toBlock} (${toBlock - fromBlock + 1} blocks)`);
 
-  // Fetch Transfer logs
-  const logs = await rpc.getLogs({
-    fromBlock: '0x' + fromBlock.toString(16),
-    toBlock: '0x' + toBlock.toString(16),
-    topics: [TRANSFER_TOPIC],
-  });
+  // Fetch Transfer logs with adaptive batch size
+  let logs: EthLog[] = [];
+  let currentToBlock = toBlock;
+  let attempts = 0;
+  const MAX_ATTEMPTS = 5;
+
+  while (attempts < MAX_ATTEMPTS) {
+    try {
+      logs = await rpc.getLogs({
+        fromBlock: '0x' + fromBlock.toString(16),
+        toBlock: '0x' + currentToBlock.toString(16),
+        topics: [TRANSFER_TOPIC],
+      });
+      toBlock = currentToBlock;
+      break;
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      
+      // If too many results, reduce batch size
+      if (errorMessage.includes('10000 results') || errorMessage.includes('-32005')) {
+        const newRange = Math.floor((currentToBlock - fromBlock + 1) / 2);
+        if (newRange < 5) {
+          // Range too small, skip this batch
+          console.log(`[ERC20 Indexer] Block range too dense, skipping to next batch`);
+          await updateSyncState(currentToBlock);
+          return {
+            fromBlock,
+            toBlock: currentToBlock,
+            logsCount: 0,
+            newLogsCount: 0,
+            duration: Date.now() - startTime,
+          };
+        }
+        currentToBlock = fromBlock + newRange - 1;
+        console.log(`[ERC20 Indexer] Reducing batch size to ${newRange} blocks`);
+        attempts++;
+      } else {
+        throw err;
+      }
+    }
+  }
 
   console.log(`[ERC20 Indexer] Found ${logs.length} Transfer events`);
 
