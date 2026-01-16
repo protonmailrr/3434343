@@ -271,6 +271,7 @@ export async function getIndexerStatus(): Promise<{
       rpcUrl: env.INFURA_RPC_URL ? '[configured]' : null,
       syncStatus: null,
       buildStatus: null,
+      relationsStatus: null,
     };
   }
 }
