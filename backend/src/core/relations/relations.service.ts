@@ -1,14 +1,9 @@
 /**
  * Relations Service
- * Business logic for relation operations
+ * Business logic for aggregated relations
  * 
- * Key concept: DENSITY SCORE
- * - We never draw N lines between entities
- * - We draw 1 corridor, where N is its density (thickness)
- * 
- * Formula: densityScore = log(interactions + 1) * log(volume + 1) / days
- * 
- * This prevents the graph from exploding ("onion layers" problem)
+ * Key concept: Relations are aggregated FROM transfers
+ * They represent "corridor density" for the Warhammer-style graph
  */
 import {
   relationsRepository,
@@ -16,60 +11,31 @@ import {
   RelationSort,
   PaginationOptions,
 } from './relations.repository.js';
-import { IRelation, EntityType, Direction } from './relations.model.js';
-import { AppError } from '../../common/errors.js';
+import { 
+  IRelation, 
+  RelationWindow, 
+  RelationChain,
+  WINDOW_DAYS 
+} from './relations.model.js';
 
 /**
- * Calculate density score for a relation
- * 
- * @param interactionCount - Number of interactions
- * @param volumeUSD - Total volume in USD
- * @param firstSeenAt - First interaction timestamp
- * @param lastSeenAt - Last interaction timestamp
- * @returns Density score
+ * Format relation for API response
  */
-export function calculateDensityScore(
-  interactionCount: number,
-  volumeUSD: number,
-  firstSeenAt: Date,
-  lastSeenAt: Date
-): number {
-  const days = Math.max(
-    (lastSeenAt.getTime() - firstSeenAt.getTime()) / (1000 * 60 * 60 * 24),
-    1 // Minimum 1 day to avoid division issues
-  );
-
-  // Log-based formula prevents extreme values
-  // High interactions + high volume = thick corridor
-  // Over long time = thinner (distributed activity)
-  return (Math.log(interactionCount + 1) * Math.log(volumeUSD + 1)) / days;
-}
-
-/**
- * Calculate influence weight
- * Can be customized based on entity types and other factors
- */
-export function calculateInfluenceWeight(
-  densityScore: number,
-  fromType: EntityType,
-  toType: EntityType
-): number {
-  // Base weight is density score
-  let weight = densityScore;
-
-  // Boost weights for certain relationships
-  const boostMap: Record<string, number> = {
-    'actor->actor': 1.5,    // Actor-to-actor is highly significant
-    'actor->entity': 1.3,   // Actor-to-entity matters
-    'entity->entity': 1.2,  // Entity correlations
-    'wallet->actor': 1.1,   // Wallet linked to actor
-    'token->entity': 1.0,   // Token-entity flows
+export function formatRelation(relation: IRelation) {
+  return {
+    id: relation._id.toString(),
+    from: relation.from,
+    to: relation.to,
+    chain: relation.chain,
+    window: relation.window,
+    direction: relation.direction,
+    interactionCount: relation.interactionCount,
+    volumeRaw: relation.volumeRaw,
+    firstSeenAt: relation.firstSeenAt,
+    lastSeenAt: relation.lastSeenAt,
+    densityScore: relation.densityScore,
+    source: relation.source,
   };
-
-  const key = `${fromType}->${toType}`;
-  weight *= boostMap[key] || 1.0;
-
-  return weight;
 }
 
 /**
@@ -77,216 +43,193 @@ export function calculateInfluenceWeight(
  */
 export class RelationsService {
   /**
-   * Upsert relation - main operation
-   * Creates new or updates existing relation with recalculated density
-   */
-  async upsertRelation(params: {
-    from: string;
-    to: string;
-    fromType: EntityType;
-    toType: EntityType;
-    direction: Direction;
-    volumeUSD: number;
-    timestamp: Date;
-    tags?: string[];
-  }): Promise<IRelation> {
-    // Validate: cannot create self-relation
-    if (params.from === params.to) {
-      throw new AppError('Cannot create self-relation', 400, 'INVALID_RELATION');
-    }
-
-    return relationsRepository.upsert(params);
-  }
-
-  /**
    * Get relation by ID
    */
-  async getById(id: string): Promise<IRelation> {
-    const relation = await relationsRepository.findById(id);
-    if (!relation) {
-      throw new AppError('Relation not found', 404, 'NOT_FOUND');
-    }
-    return relation;
+  async getById(id: string): Promise<IRelation | null> {
+    return relationsRepository.findById(id);
   }
 
   /**
-   * Get corridor between two entities
-   * Returns aggregated data for the "thick corridor" visualization
+   * Get graph data (top relations by density)
+   * This feeds the Warhammer-style visualization
    */
-  async getCorridor(
-    fromId: string,
-    toId: string
-  ): Promise<{
-    relations: IRelation[];
-    summary: {
-      totalInteractions: number;
-      totalVolumeUSD: number;
-      maxDensity: number;
-      directions: Direction[];
-      allTags: string[];
-      firstSeen: Date | null;
-      lastSeen: Date | null;
-    };
-  }> {
-    const relations = await relationsRepository.findCorridor(fromId, toId);
-
-    if (relations.length === 0) {
-      return {
-        relations: [],
-        summary: {
-          totalInteractions: 0,
-          totalVolumeUSD: 0,
-          maxDensity: 0,
-          directions: [],
-          allTags: [],
-          firstSeen: null,
-          lastSeen: null,
-        },
-      };
-    }
-
-    // Aggregate summary
-    const summary = relations.reduce(
-      (acc, rel) => {
-        acc.totalInteractions += rel.interactionCount;
-        acc.totalVolumeUSD += rel.volumeUSD;
-        acc.maxDensity = Math.max(acc.maxDensity, rel.densityScore);
-        if (!acc.directions.includes(rel.direction)) {
-          acc.directions.push(rel.direction);
-        }
-        rel.tags.forEach((tag) => {
-          if (!acc.allTags.includes(tag)) acc.allTags.push(tag);
-        });
-        if (!acc.firstSeen || rel.firstSeenAt < acc.firstSeen) {
-          acc.firstSeen = rel.firstSeenAt;
-        }
-        if (!acc.lastSeen || rel.lastSeenAt > acc.lastSeen) {
-          acc.lastSeen = rel.lastSeenAt;
-        }
-        return acc;
-      },
-      {
-        totalInteractions: 0,
-        totalVolumeUSD: 0,
-        maxDensity: 0,
-        directions: [] as Direction[],
-        allTags: [] as string[],
-        firstSeen: null as Date | null,
-        lastSeen: null as Date | null,
-      }
-    );
-
-    return { relations, summary };
-  }
-
-  /**
-   * Get relations graph for an entity
-   * Used for influence graph visualization
-   */
-  async getGraph(
-    entityId: string,
-    options: {
-      entityType?: EntityType;
-      depth?: number;
-      minDensity?: number;
-      limit?: number;
-    } = {}
-  ): Promise<{
-    nodes: Array<{ id: string; type: EntityType }>;
+  async getGraph(options: {
+    window?: RelationWindow;
+    minDensity?: number;
+    chain?: RelationChain;
+    limit?: number;
+  } = {}): Promise<{
+    nodes: Array<{ id: string; type: 'address' }>;
     edges: Array<{
       from: string;
       to: string;
       density: number;
-      influence: number;
-      direction: Direction;
+      interactionCount: number;
+      direction: string;
     }>;
+    meta: {
+      window: RelationWindow;
+      minDensity: number;
+      totalEdges: number;
+    };
   }> {
-    const { depth = 1, minDensity = 0, limit = 50 } = options;
+    const { window = '7d', minDensity = 0, limit = 100 } = options;
 
-    // Get direct relations
-    const relations = await relationsRepository.findForEntity(entityId, {
-      entityType: options.entityType,
+    const relations = await relationsRepository.findTopByDensity(
+      window,
       minDensity,
-      limit,
-    });
+      limit
+    );
 
-    // Build graph
-    const nodesMap = new Map<string, EntityType>();
+    // Build nodes and edges
+    const nodesSet = new Set<string>();
     const edges: Array<{
       from: string;
       to: string;
       density: number;
-      influence: number;
-      direction: Direction;
+      interactionCount: number;
+      direction: string;
     }> = [];
 
-    // Add center node
-    nodesMap.set(entityId, options.entityType || 'entity');
-
-    // Process relations
-    relations.forEach((rel) => {
-      const fromStr = rel.from.toString();
-      const toStr = rel.to.toString();
-
-      nodesMap.set(fromStr, rel.fromType);
-      nodesMap.set(toStr, rel.toType);
+    relations.forEach((r) => {
+      nodesSet.add(r.from);
+      nodesSet.add(r.to);
 
       edges.push({
-        from: fromStr,
-        to: toStr,
-        density: rel.densityScore,
-        influence: rel.influenceWeight,
-        direction: rel.direction,
+        from: r.from,
+        to: r.to,
+        density: r.densityScore,
+        interactionCount: r.interactionCount,
+        direction: r.direction,
       });
     });
 
-    // If depth > 1, get relations for connected nodes
-    if (depth > 1) {
-      const connectedIds = Array.from(nodesMap.keys()).filter(
-        (id) => id !== entityId
-      );
-
-      for (const connectedId of connectedIds.slice(0, 10)) {
-        // Limit depth expansion
-        const secondLevel = await relationsRepository.findForEntity(
-          connectedId,
-          { minDensity: minDensity * 1.5, limit: 10 } // Higher threshold for 2nd level
-        );
-
-        secondLevel.forEach((rel) => {
-          const fromStr = rel.from.toString();
-          const toStr = rel.to.toString();
-
-          nodesMap.set(fromStr, rel.fromType);
-          nodesMap.set(toStr, rel.toType);
-
-          // Avoid duplicate edges
-          const edgeExists = edges.some(
-            (e) =>
-              (e.from === fromStr && e.to === toStr) ||
-              (e.from === toStr && e.to === fromStr)
-          );
-
-          if (!edgeExists) {
-            edges.push({
-              from: fromStr,
-              to: toStr,
-              density: rel.densityScore,
-              influence: rel.influenceWeight,
-              direction: rel.direction,
-            });
-          }
-        });
-      }
-    }
-
-    // Convert to arrays
-    const nodes = Array.from(nodesMap.entries()).map(([id, type]) => ({
+    const nodes = Array.from(nodesSet).map((id) => ({
       id,
-      type,
+      type: 'address' as const,
     }));
 
-    return { nodes, edges };
+    return {
+      nodes,
+      edges,
+      meta: {
+        window,
+        minDensity,
+        totalEdges: edges.length,
+      },
+    };
+  }
+
+  /**
+   * Get relations for an address
+   */
+  async getForAddress(
+    address: string,
+    options: {
+      window?: RelationWindow;
+      direction?: 'in' | 'out' | 'both';
+      minDensity?: number;
+      limit?: number;
+    } = {}
+  ): Promise<{
+    relations: IRelation[];
+    summary: {
+      totalRelations: number;
+      inbound: number;
+      outbound: number;
+      avgDensity: number;
+    };
+  }> {
+    const relations = await relationsRepository.findForAddress(address, options);
+
+    // Calculate summary
+    const addr = address.toLowerCase();
+    let inbound = 0;
+    let outbound = 0;
+    let totalDensity = 0;
+
+    relations.forEach((r) => {
+      if (r.from === addr) outbound++;
+      if (r.to === addr) inbound++;
+      totalDensity += r.densityScore;
+    });
+
+    return {
+      relations,
+      summary: {
+        totalRelations: relations.length,
+        inbound,
+        outbound,
+        avgDensity: relations.length > 0 ? totalDensity / relations.length : 0,
+      },
+    };
+  }
+
+  /**
+   * Get corridor between two addresses
+   * Returns aggregated relation data for the corridor visualization
+   */
+  async getCorridor(
+    addressA: string,
+    addressB: string,
+    window: RelationWindow = '7d'
+  ): Promise<{
+    relations: IRelation[];
+    summary: {
+      aToB: {
+        interactionCount: number;
+        volumeRaw: string;
+        density: number;
+      } | null;
+      bToA: {
+        interactionCount: number;
+        volumeRaw: string;
+        density: number;
+      } | null;
+      totalInteractions: number;
+      maxDensity: number;
+      bidirectional: boolean;
+    };
+  }> {
+    const relations = await relationsRepository.findCorridor(addressA, addressB, window);
+
+    const a = addressA.toLowerCase();
+    const b = addressB.toLowerCase();
+
+    let aToB: { interactionCount: number; volumeRaw: string; density: number } | null = null;
+    let bToA: { interactionCount: number; volumeRaw: string; density: number } | null = null;
+    let maxDensity = 0;
+    let totalInteractions = 0;
+
+    relations.forEach((r) => {
+      totalInteractions += r.interactionCount;
+      if (r.densityScore > maxDensity) maxDensity = r.densityScore;
+
+      if (r.from === a && r.to === b) {
+        aToB = {
+          interactionCount: r.interactionCount,
+          volumeRaw: r.volumeRaw,
+          density: r.densityScore,
+        };
+      } else if (r.from === b && r.to === a) {
+        bToA = {
+          interactionCount: r.interactionCount,
+          volumeRaw: r.volumeRaw,
+          density: r.densityScore,
+        };
+      }
+    });
+
+    return {
+      relations,
+      summary: {
+        aToB,
+        bToA,
+        totalInteractions,
+        maxDensity,
+        bidirectional: aToB !== null && bToA !== null,
+      },
+    };
   }
 
   /**
@@ -320,101 +263,15 @@ export class RelationsService {
   }
 
   /**
-   * Get top relations by density (hottest corridors)
-   */
-  async getTopCorridors(limit: number = 50): Promise<IRelation[]> {
-    return relationsRepository.findTopByDensity(limit);
-  }
-
-  /**
-   * Get top relations by influence
-   */
-  async getTopInfluencers(limit: number = 50): Promise<IRelation[]> {
-    return relationsRepository.findTopByInfluence(limit);
-  }
-
-  /**
-   * Add tags to relation
-   */
-  async addTags(id: string, tags: string[]): Promise<IRelation> {
-    const relation = await relationsRepository.addTags(id, tags);
-    if (!relation) {
-      throw new AppError('Relation not found', 404, 'NOT_FOUND');
-    }
-    return relation;
-  }
-
-  /**
-   * Delete relation
-   */
-  async delete(id: string): Promise<void> {
-    const deleted = await relationsRepository.delete(id);
-    if (!deleted) {
-      throw new AppError('Relation not found', 404, 'NOT_FOUND');
-    }
-  }
-
-  /**
    * Get statistics
    */
   async getStats(): Promise<{
     totalRelations: number;
-    totalVolume: number;
+    byWindow: Record<string, number>;
     avgDensity: number;
-    byType: Record<string, number>;
+    maxDensity: number;
   }> {
     return relationsRepository.getStats();
-  }
-
-  /**
-   * Cleanup old relations
-   */
-  async cleanup(olderThanDays: number = 90): Promise<number> {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - olderThanDays);
-    return relationsRepository.deleteOlderThan(cutoff);
-  }
-
-  /**
-   * Recalculate density for all relations
-   * Used for batch recalculation jobs
-   */
-  async recalculateAllDensities(): Promise<number> {
-    const { relations } = await relationsRepository.findMany(
-      {},
-      { field: 'lastSeenAt', order: 'desc' },
-      { limit: 10000, offset: 0 }
-    );
-
-    let updated = 0;
-
-    for (const rel of relations) {
-      const newDensity = calculateDensityScore(
-        rel.interactionCount,
-        rel.volumeUSD,
-        rel.firstSeenAt,
-        rel.lastSeenAt
-      );
-
-      const newInfluence = calculateInfluenceWeight(
-        newDensity,
-        rel.fromType,
-        rel.toType
-      );
-
-      if (
-        Math.abs(newDensity - rel.densityScore) > 0.01 ||
-        Math.abs(newInfluence - rel.influenceWeight) > 0.01
-      ) {
-        await relationsRepository.update(rel._id.toString(), {
-          densityScore: newDensity,
-          influenceWeight: newInfluence,
-        });
-        updated++;
-      }
-    }
-
-    return updated;
   }
 }
 

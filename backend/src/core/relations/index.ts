@@ -1,40 +1,36 @@
 /**
- * Relations Module - Core foundation for the graph
+ * Relations Module Index
+ * Aggregated relations layer (L3) - built from transfers (L2)
  * 
- * This module handles:
- * - Influence Graph
- * - "Dense corridor" logic (Warhammer-style)
- * - Actors / Entities correlation
- * - Signals foundation
- * - Alerts foundation
- * - Copy-trading logic
- * 
- * Key concept: Relation = aggregated connection, NOT a transaction
- * "Between A and B there are X interactions over period T
- *  with direction, density, and type"
+ * Key concept: 1000 transfers → 1 relation with density score
+ * This is how we solve the "onion problem" (Warhammer-style corridors)
  */
 
 // Model
-export { RelationModel, type IRelation, type EntityType, type Direction } from './relations.model.js';
+export {
+  RelationModel,
+  type IRelation,
+  type RelationWindow,
+  type RelationDirection,
+  type RelationSource,
+  type RelationChain,
+  WINDOW_DAYS,
+  calculateDensityScore,
+} from './relations.model.js';
 
 // Schemas
 export {
-  EntityTypeEnum,
-  DirectionEnum,
-  RelationTagEnum,
-  CreateRelationSchema,
-  UpdateRelationSchema,
-  UpsertRelationSchema,
-  QueryRelationsSchema,
-  CorridorQuerySchema,
-  GraphQuerySchema,
+  RelationWindowEnum,
+  RelationDirectionEnum,
+  RelationChainEnum,
+  RelationSourceEnum,
+  QueryGraphSchema,
+  QueryByAddressSchema,
+  QueryCorridorSchema,
   RelationResponseSchema,
-  type CreateRelationInput,
-  type UpdateRelationInput,
-  type UpsertRelationInput,
-  type QueryRelationsInput,
-  type CorridorQueryInput,
-  type GraphQueryInput,
+  type QueryGraphInput,
+  type QueryByAddressInput,
+  type QueryCorridorInput,
   type RelationResponse,
 } from './relations.schema.js';
 
@@ -51,8 +47,7 @@ export {
 export {
   RelationsService,
   relationsService,
-  calculateDensityScore,
-  calculateInfluenceWeight,
+  formatRelation,
 } from './relations.service.js';
 
 // Routes
