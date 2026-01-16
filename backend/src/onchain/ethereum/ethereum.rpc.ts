@@ -54,35 +54,65 @@ export class EthereumRpc {
   }
 
   /**
-   * Make JSON-RPC call
+   * Make JSON-RPC call with retry logic
    */
-  async call<T>(method: string, params: unknown[]): Promise<T> {
+  async call<T>(method: string, params: unknown[], retries = 3): Promise<T> {
     this.requestId++;
+    let lastError: Error | null = null;
 
-    const response = await fetch(this.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: this.requestId,
-        method,
-        params,
-      }),
-    });
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const response = await fetch(this.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: this.requestId,
+            method,
+            params,
+          }),
+        });
 
-    if (!response.ok) {
-      throw new Error(`RPC HTTP error: ${response.status} ${response.statusText}`);
+        // Handle rate limiting with exponential backoff
+        if (response.status === 429) {
+          const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+          console.log(`[RPC] Rate limited, waiting ${waitTime}ms before retry...`);
+          await this.sleep(waitTime);
+          continue;
+        }
+
+        if (!response.ok) {
+          throw new Error(`RPC HTTP error: ${response.status} ${response.statusText}`);
+        }
+
+        const json = (await response.json()) as RpcResponse<T>;
+
+        if (json.error) {
+          throw new Error(`RPC error: ${json.error.message} (code: ${json.error.code})`);
+        }
+
+        return json.result as T;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        
+        // Retry on network errors
+        if (attempt < retries - 1) {
+          const waitTime = Math.pow(2, attempt) * 500;
+          await this.sleep(waitTime);
+        }
+      }
     }
 
-    const json = (await response.json()) as RpcResponse<T>;
+    throw lastError || new Error('RPC call failed after retries');
+  }
 
-    if (json.error) {
-      throw new Error(`RPC error: ${json.error.message} (code: ${json.error.code})`);
-    }
-
-    return json.result as T;
+  /**
+   * Sleep helper
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
