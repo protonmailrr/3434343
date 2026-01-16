@@ -9,7 +9,6 @@ import {
 import { 
   ISignal, 
   SignalType, 
-  SignalEntityType,
   SignalSeverity
 } from './signals.model.js';
 

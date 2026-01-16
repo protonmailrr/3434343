@@ -11,7 +11,7 @@
  */
 import { BundleModel, IBundle, BundleType, BundleWindow } from '../core/bundles/bundles.model.js';
 import { signalsRepository } from '../core/signals/signals.repository.js';
-import { SignalType, SignalEntityType } from '../core/signals/signals.model.js';
+import { SignalType } from '../core/signals/signals.model.js';
 import { SyncStateModel } from '../onchain/ethereum/sync_state.model.js';
 
 // Sync key for tracking last processed bundle
