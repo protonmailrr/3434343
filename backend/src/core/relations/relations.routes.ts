@@ -245,7 +245,7 @@ export async function relationsRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post<{ Params: { id: string }; Body: { tags: string[] } }>(
     '/:id/tags',
-    async (request, reply) => {
+    async (request) => {
       const { id } = request.params;
       const { tags } = request.body;
 
