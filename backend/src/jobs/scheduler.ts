@@ -401,6 +401,7 @@ export async function getIndexerStatus(): Promise<{
       bundlesStatus: null,
       signalsStatus: null,
       scoresStatus: null,
+      strategyProfilesStatus: null,
     };
   }
 }
