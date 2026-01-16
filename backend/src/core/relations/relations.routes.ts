@@ -218,13 +218,17 @@ export async function relationsRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post<{ Body: UpsertRelationInput }>(
     '/',
-    {
-      schema: {
-        body: UpsertRelationSchema,
-      },
-    },
     async (request, reply) => {
-      const data = request.body;
+      // Parse and validate body
+      const parseResult = UpsertRelationSchema.safeParse(request.body);
+      if (!parseResult.success) {
+        return reply.status(400).send({
+          ok: false,
+          error: 'VALIDATION_ERROR',
+          message: parseResult.error.message,
+        });
+      }
+      const data = parseResult.data;
 
       const relation = await relationsService.upsertRelation({
         from: data.from,
