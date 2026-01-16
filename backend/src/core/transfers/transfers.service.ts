@@ -11,7 +11,7 @@ import {
   TransferSort,
   PaginationOptions,
 } from './transfers.repository.js';
-import { ITransfer, AssetType, Chain, TransferSource } from './transfers.model.js';
+import { ITransfer, AssetType, Chain } from './transfers.model.js';
 
 /**
  * Format transfer for API response
