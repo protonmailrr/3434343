@@ -9,6 +9,7 @@ import { buildRelations, getBuildRelationsStatus } from './build_relations.job.j
 import { buildBundles, getBuildBundlesStatus } from './build_bundles.job.js';
 import { buildSignals, getBuildSignalsStatus } from './build_signals.job.js';
 import { buildScores, getBuildScoresStatus } from './build_scores.job.js';
+import { buildStrategyProfiles, getBuildStrategyProfilesStatus } from './build_strategy_profiles.job.js';
 
 interface ScheduledJob {
   name: string;
