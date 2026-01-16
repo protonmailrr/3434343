@@ -1,28 +1,32 @@
 /**
  * Relations Repository
- * Database operations for relations
+ * Database operations for aggregated relations
  */
-import { RelationModel, IRelation, EntityType, Direction } from './relations.model.js';
+import { 
+  RelationModel, 
+  IRelation, 
+  RelationWindow, 
+  RelationDirection, 
+  RelationChain,
+  RelationSource,
+  calculateDensityScore 
+} from './relations.model.js';
 import { FilterQuery, SortOrder } from 'mongoose';
 
 export interface RelationFilter {
   from?: string;
   to?: string;
-  fromType?: EntityType;
-  toType?: EntityType;
-  direction?: Direction;
+  address?: string;  // from OR to
+  window?: RelationWindow;
+  direction?: RelationDirection;
+  chain?: RelationChain;
+  source?: RelationSource;
   minDensity?: number;
   maxDensity?: number;
-  minVolume?: number;
-  maxVolume?: number;
-  minInteractions?: number;
-  tags?: string[];
-  since?: Date;
-  until?: Date;
 }
 
 export interface RelationSort {
-  field: 'densityScore' | 'volumeUSD' | 'interactionCount' | 'lastSeenAt' | 'influenceWeight';
+  field: 'densityScore' | 'interactionCount' | 'lastSeenAt';
   order: 'asc' | 'desc';
 }
 
@@ -32,46 +36,33 @@ export interface PaginationOptions {
 }
 
 /**
- * Build MongoDB filter from RelationFilter
+ * Build MongoDB filter
  */
 function buildFilter(filter: RelationFilter): FilterQuery<IRelation> {
   const query: FilterQuery<IRelation> = {};
 
-  if (filter.from) query.from = filter.from;
-  if (filter.to) query.to = filter.to;
-  if (filter.fromType) query.fromType = filter.fromType;
-  if (filter.toType) query.toType = filter.toType;
+  // Address filter
+  if (filter.address) {
+    const addr = filter.address.toLowerCase();
+    query.$or = [
+      { from: addr },
+      { to: addr },
+    ];
+  } else {
+    if (filter.from) query.from = filter.from.toLowerCase();
+    if (filter.to) query.to = filter.to.toLowerCase();
+  }
+
+  if (filter.window) query.window = filter.window;
   if (filter.direction) query.direction = filter.direction;
+  if (filter.chain) query.chain = filter.chain;
+  if (filter.source) query.source = filter.source;
 
   // Density range
   if (filter.minDensity !== undefined || filter.maxDensity !== undefined) {
     query.densityScore = {};
     if (filter.minDensity !== undefined) query.densityScore.$gte = filter.minDensity;
     if (filter.maxDensity !== undefined) query.densityScore.$lte = filter.maxDensity;
-  }
-
-  // Volume range
-  if (filter.minVolume !== undefined || filter.maxVolume !== undefined) {
-    query.volumeUSD = {};
-    if (filter.minVolume !== undefined) query.volumeUSD.$gte = filter.minVolume;
-    if (filter.maxVolume !== undefined) query.volumeUSD.$lte = filter.maxVolume;
-  }
-
-  // Minimum interactions
-  if (filter.minInteractions !== undefined) {
-    query.interactionCount = { $gte: filter.minInteractions };
-  }
-
-  // Tags filter (match any)
-  if (filter.tags && filter.tags.length > 0) {
-    query.tags = { $in: filter.tags };
-  }
-
-  // Time range
-  if (filter.since || filter.until) {
-    query.lastSeenAt = {};
-    if (filter.since) query.lastSeenAt.$gte = filter.since;
-    if (filter.until) query.lastSeenAt.$lte = filter.until;
   }
 
   return query;
@@ -89,25 +80,37 @@ export class RelationsRepository {
   }
 
   /**
-   * Find unique relation between two entities
+   * Find unique relation by pair + window
    */
   async findByPair(
     from: string,
     to: string,
-    fromType: EntityType,
-    toType: EntityType
+    window: RelationWindow,
+    chain: RelationChain = 'ethereum'
   ): Promise<IRelation | null> {
-    return RelationModel.findOne({ from, to, fromType, toType }).lean<IRelation>();
+    return RelationModel.findOne({
+      from: from.toLowerCase(),
+      to: to.toLowerCase(),
+      window,
+      chain,
+    }).lean<IRelation>();
   }
 
   /**
-   * Find corridor (relation in both directions)
+   * Find corridor (both directions)
    */
-  async findCorridor(fromId: string, toId: string): Promise<IRelation[]> {
+  async findCorridor(
+    addressA: string,
+    addressB: string,
+    window: RelationWindow = '7d'
+  ): Promise<IRelation[]> {
+    const a = addressA.toLowerCase();
+    const b = addressB.toLowerCase();
+
     return RelationModel.find({
       $or: [
-        { from: fromId, to: toId },
-        { from: toId, to: fromId },
+        { from: a, to: b, window },
+        { from: b, to: a, window },
       ],
     })
       .sort({ densityScore: -1 })
@@ -115,7 +118,7 @@ export class RelationsRepository {
   }
 
   /**
-   * Find all relations with filters
+   * Find relations with filters
    */
   async findMany(
     filter: RelationFilter,
@@ -140,174 +143,200 @@ export class RelationsRepository {
   }
 
   /**
-   * Find relations for entity (graph query)
+   * Find top relations by density (for graph)
    */
-  async findForEntity(
-    entityId: string,
+  async findTopByDensity(
+    window: RelationWindow = '7d',
+    minDensity: number = 0,
+    limit: number = 100
+  ): Promise<IRelation[]> {
+    return RelationModel.find({
+      window,
+      densityScore: { $gte: minDensity },
+    })
+      .sort({ densityScore: -1 })
+      .limit(limit)
+      .lean<IRelation[]>();
+  }
+
+  /**
+   * Find relations for address
+   */
+  async findForAddress(
+    address: string,
     options: {
-      entityType?: EntityType;
+      window?: RelationWindow;
+      direction?: 'in' | 'out' | 'both';
       minDensity?: number;
       limit?: number;
     } = {}
   ): Promise<IRelation[]> {
-    const query: FilterQuery<IRelation> = {
-      $or: [{ from: entityId }, { to: entityId }],
-    };
+    const addr = address.toLowerCase();
+    const { window = '7d', direction = 'both', minDensity = 0, limit = 50 } = options;
 
-    if (options.minDensity !== undefined) {
-      query.densityScore = { $gte: options.minDensity };
+    let query: FilterQuery<IRelation>;
+
+    if (direction === 'out') {
+      query = { from: addr, window };
+    } else if (direction === 'in') {
+      query = { to: addr, window };
+    } else {
+      query = { $or: [{ from: addr }, { to: addr }], window };
+    }
+
+    if (minDensity > 0) {
+      query.densityScore = { $gte: minDensity };
     }
 
     return RelationModel.find(query)
       .sort({ densityScore: -1 })
-      .limit(options.limit || 50)
-      .lean<IRelation[]>();
-  }
-
-  /**
-   * Find top relations by density
-   */
-  async findTopByDensity(limit: number = 100): Promise<IRelation[]> {
-    return RelationModel.find()
-      .sort({ densityScore: -1 })
       .limit(limit)
       .lean<IRelation[]>();
   }
 
   /**
-   * Find top relations by influence weight
-   */
-  async findTopByInfluence(limit: number = 100): Promise<IRelation[]> {
-    return RelationModel.find()
-      .sort({ influenceWeight: -1 })
-      .limit(limit)
-      .lean<IRelation[]>();
-  }
-
-  /**
-   * Create new relation
-   */
-  async create(data: {
-    from: string;
-    to: string;
-    fromType: EntityType;
-    toType: EntityType;
-    direction: Direction;
-    volumeUSD: number;
-    timestamp: Date;
-    tags?: string[];
-  }): Promise<IRelation> {
-    const relation = new RelationModel({
-      ...data,
-      interactionCount: 1,
-      densityScore: 1,
-      influenceWeight: 1,
-      firstSeenAt: data.timestamp,
-      lastSeenAt: data.timestamp,
-    });
-
-    return relation.save();
-  }
-
-  /**
-   * Update relation
-   */
-  async update(
-    id: string,
-    data: Partial<{
-      direction: Direction;
-      interactionCount: number;
-      volumeUSD: number;
-      densityScore: number;
-      influenceWeight: number;
-      lastSeenAt: Date;
-      tags: string[];
-    }>
-  ): Promise<IRelation | null> {
-    return RelationModel.findByIdAndUpdate(
-      id,
-      { $set: data },
-      { new: true }
-    ).lean<IRelation>();
-  }
-
-  /**
-   * Add tags to relation
-   */
-  async addTags(id: string, tags: string[]): Promise<IRelation | null> {
-    return RelationModel.findByIdAndUpdate(
-      id,
-      { $addToSet: { tags: { $each: tags } } },
-      { new: true }
-    ).lean<IRelation>();
-  }
-
-  /**
-   * Upsert relation (main operation)
+   * Upsert relation (main operation for build job)
    */
   async upsert(data: {
     from: string;
     to: string;
-    fromType: EntityType;
-    toType: EntityType;
-    direction: Direction;
-    volumeUSD: number;
-    timestamp: Date;
-    tags?: string[];
+    chain: RelationChain;
+    window: RelationWindow;
+    direction: RelationDirection;
+    interactionCount: number;
+    volumeRaw: string;
+    firstSeenAt: Date;
+    lastSeenAt: Date;
+    source: RelationSource;
+    lastTransferProcessed?: string;
   }): Promise<IRelation> {
-    const existing = await this.findByPair(
-      data.from,
-      data.to,
-      data.fromType,
-      data.toType
+    const densityScore = calculateDensityScore(
+      data.interactionCount,
+      data.volumeRaw,
+      data.window
     );
 
-    if (!existing) {
-      return this.create(data);
-    }
-
-    // Update existing relation
-    const interactionCount = existing.interactionCount + 1;
-    const volumeUSD = existing.volumeUSD + data.volumeUSD;
-
-    // Calculate density score
-    const days = Math.max(
-      (data.timestamp.getTime() - existing.firstSeenAt.getTime()) /
-        (1000 * 60 * 60 * 24),
-      1
-    );
-
-    const densityScore =
-      (Math.log(interactionCount + 1) * Math.log(volumeUSD + 1)) / days;
-
-    // Merge tags
-    const tags = [...new Set([...(existing.tags || []), ...(data.tags || [])])];
-
-    const updated = await RelationModel.findByIdAndUpdate(
-      existing._id,
+    const result = await RelationModel.findOneAndUpdate(
+      {
+        from: data.from.toLowerCase(),
+        to: data.to.toLowerCase(),
+        window: data.window,
+        chain: data.chain,
+      },
       {
         $set: {
-          interactionCount,
-          volumeUSD,
-          densityScore,
-          influenceWeight: densityScore,
-          lastSeenAt: data.timestamp,
           direction: data.direction,
-          tags,
+          interactionCount: data.interactionCount,
+          volumeRaw: data.volumeRaw,
+          firstSeenAt: data.firstSeenAt,
+          lastSeenAt: data.lastSeenAt,
+          densityScore,
+          source: data.source,
+          lastTransferProcessed: data.lastTransferProcessed,
+          processedAt: new Date(),
         },
       },
-      { new: true }
+      { upsert: true, new: true }
     ).lean<IRelation>();
 
-    return updated as IRelation;
+    return result as IRelation;
   }
 
   /**
-   * Delete relation
+   * Bulk upsert relations
    */
-  async delete(id: string): Promise<boolean> {
-    const result = await RelationModel.deleteOne({ _id: id });
-    return result.deletedCount > 0;
+  async bulkUpsert(
+    relations: Array<{
+      from: string;
+      to: string;
+      chain: RelationChain;
+      window: RelationWindow;
+      direction: RelationDirection;
+      interactionCount: number;
+      volumeRaw: string;
+      firstSeenAt: Date;
+      lastSeenAt: Date;
+      source: RelationSource;
+    }>
+  ): Promise<{ upsertedCount: number; modifiedCount: number }> {
+    if (relations.length === 0) {
+      return { upsertedCount: 0, modifiedCount: 0 };
+    }
+
+    const bulkOps = relations.map((r) => {
+      const densityScore = calculateDensityScore(
+        r.interactionCount,
+        r.volumeRaw,
+        r.window
+      );
+
+      return {
+        updateOne: {
+          filter: {
+            from: r.from.toLowerCase(),
+            to: r.to.toLowerCase(),
+            window: r.window,
+            chain: r.chain,
+          },
+          update: {
+            $set: {
+              direction: r.direction,
+              interactionCount: r.interactionCount,
+              volumeRaw: r.volumeRaw,
+              firstSeenAt: r.firstSeenAt,
+              lastSeenAt: r.lastSeenAt,
+              densityScore,
+              source: r.source,
+              processedAt: new Date(),
+            },
+          },
+          upsert: true,
+        },
+      };
+    });
+
+    const result = await RelationModel.bulkWrite(bulkOps, { ordered: false });
+
+    return {
+      upsertedCount: result.upsertedCount,
+      modifiedCount: result.modifiedCount,
+    };
+  }
+
+  /**
+   * Get statistics
+   */
+  async getStats(): Promise<{
+    totalRelations: number;
+    byWindow: Record<string, number>;
+    avgDensity: number;
+    maxDensity: number;
+  }> {
+    const [total, byWindow, stats] = await Promise.all([
+      RelationModel.countDocuments(),
+      RelationModel.aggregate([
+        { $group: { _id: '$window', count: { $sum: 1 } } },
+      ]),
+      RelationModel.aggregate([
+        {
+          $group: {
+            _id: null,
+            avgDensity: { $avg: '$densityScore' },
+            maxDensity: { $max: '$densityScore' },
+          },
+        },
+      ]),
+    ]);
+
+    const windowStats: Record<string, number> = {};
+    byWindow.forEach((w) => { windowStats[w._id] = w.count; });
+
+    return {
+      totalRelations: total,
+      byWindow: windowStats,
+      avgDensity: stats[0]?.avgDensity || 0,
+      maxDensity: stats[0]?.maxDensity || 0,
+    };
   }
 
   /**
@@ -318,50 +347,6 @@ export class RelationsRepository {
       lastSeenAt: { $lt: date },
     });
     return result.deletedCount;
-  }
-
-  /**
-   * Get statistics
-   */
-  async getStats(): Promise<{
-    totalRelations: number;
-    totalVolume: number;
-    avgDensity: number;
-    byType: Record<string, number>;
-  }> {
-    const [stats, byType] = await Promise.all([
-      RelationModel.aggregate([
-        {
-          $group: {
-            _id: null,
-            totalRelations: { $sum: 1 },
-            totalVolume: { $sum: '$volumeUSD' },
-            avgDensity: { $avg: '$densityScore' },
-          },
-        },
-      ]),
-      RelationModel.aggregate([
-        {
-          $group: {
-            _id: { fromType: '$fromType', toType: '$toType' },
-            count: { $sum: 1 },
-          },
-        },
-      ]),
-    ]);
-
-    const typeStats: Record<string, number> = {};
-    byType.forEach((item) => {
-      const key = `${item._id.fromType}->${item._id.toType}`;
-      typeStats[key] = item.count;
-    });
-
-    return {
-      totalRelations: stats[0]?.totalRelations || 0,
-      totalVolume: stats[0]?.totalVolume || 0,
-      avgDensity: stats[0]?.avgDensity || 0,
-      byType: typeStats,
-    };
   }
 }
 
