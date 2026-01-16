@@ -39,6 +39,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   
   // Scores - Rating layer (L6)
   await app.register(scoresRoutes, { prefix: '/api/scores' });
+  
+  // Strategy Profiles - Strategy layer (L7)
+  await app.register(strategyProfilesRoutes, { prefix: '/api/strategies' });
 
   // Future modules (uncomment as implemented)
   // await app.register(actorsRoutes, { prefix: '/api/actors' });
