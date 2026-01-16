@@ -5,6 +5,7 @@
 import { env } from '../config/env.js';
 import { EthereumRpc, syncERC20Transfers, getSyncStatus } from '../onchain/ethereum/index.js';
 import { buildTransfersFromERC20, getBuildStatus } from './build_transfers.job.js';
+import { buildRelations, getBuildRelationsStatus } from './build_relations.job.js';
 
 interface ScheduledJob {
   name: string;
