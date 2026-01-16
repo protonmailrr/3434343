@@ -63,7 +63,7 @@ export async function relationsRoutes(app: FastifyInstance): Promise<void> {
         querystring: QueryRelationsSchema,
       },
     },
-    async (request, reply) => {
+    async (request) => {
       const query = request.query;
 
       const result = await relationsService.query(
