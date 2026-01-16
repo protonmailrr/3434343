@@ -92,7 +92,7 @@ export class RelationsService {
   }): Promise<IRelation> {
     // Validate: cannot create self-relation
     if (params.from === params.to) {
-      throw new AppError('INVALID_RELATION', 'Cannot create self-relation', 400);
+      throw new AppError('Cannot create self-relation', 400, 'INVALID_RELATION');
     }
 
     return relationsRepository.upsert(params);
@@ -104,7 +104,7 @@ export class RelationsService {
   async getById(id: string): Promise<IRelation> {
     const relation = await relationsRepository.findById(id);
     if (!relation) {
-      throw new AppError('NOT_FOUND', 'Relation not found', 404);
+      throw new AppError('Relation not found', 404, 'NOT_FOUND');
     }
     return relation;
   }
