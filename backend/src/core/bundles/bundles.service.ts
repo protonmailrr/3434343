@@ -127,7 +127,7 @@ export function classifyBundleType(
   }
 
   const totalVolume = forwardVolume + reverseVolume;
-  const volumeRatio = totalVolume > 0n 
+  const _volumeRatio = totalVolume > 0n 
     ? Number(forwardVolume * 100n / totalVolume) / 100 
     : 0.5;
 
@@ -271,7 +271,6 @@ export class BundlesService {
     const bundles = await bundlesRepository.findForAddress(address, options);
 
     // Calculate summary
-    const addr = address.toLowerCase();
     let accumulating = 0;
     let distributing = 0;
     let flowing = 0;
