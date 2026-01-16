@@ -249,11 +249,30 @@ export function registerDefaultJobs(): void {
     console.log('[Scheduler] Build Signals job registered');
   }
 
-  // ========== FUTURE JOBS ==========
+  // ========== BUILD SCORES JOB (L5 → L6) ==========
+  if (env.INDEXER_ENABLED) {
+    // Run every 90 seconds, after signals
+    const scoresInterval = 90000; // 90 seconds
+    
+    scheduler.register('build-scores', scoresInterval, async () => {
+      try {
+        const result = await buildScores();
+        
+        if (result.scoresUpdated > 0) {
+          console.log(
+            `[Build Scores] Updated ${result.scoresUpdated} scores ` +
+            `for ${result.processedAddresses} addresses (${result.duration}ms)`
+          );
+        }
+      } catch (err) {
+        console.error('[Build Scores] Job failed:', err);
+      }
+    });
 
-  // scheduler.register('recalculate-scores', 60_000, async () => {
-  //   // await scoresService.recalculateAll();
-  // });
+    console.log('[Scheduler] Build Scores job registered');
+  }
+
+  // ========== FUTURE JOBS ==========
 
   // scheduler.register('cleanup-old-transfers', 3600_000, async () => {
   //   // await transfersService.cleanupOld();
