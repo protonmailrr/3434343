@@ -3,6 +3,7 @@ import { healthRoutes } from './health.routes.js';
 
 // Core module routes
 import { relationsRoutes } from '../core/relations/relations.routes.js';
+import { transfersRoutes } from '../core/transfers/transfers.routes.js';
 
 // Future modules (uncomment as implemented)
 // import { actorsRoutes } from '../core/actors/actors.routes.js';
@@ -22,6 +23,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(healthRoutes, { prefix: '/api' });
 
   // ========== CORE MODULES ==========
+  
+  // Transfers - Normalized layer (L2) between on-chain and analytics
+  await app.register(transfersRoutes, { prefix: '/api/transfers' });
   
   // Relations - Foundation for all graph operations
   await app.register(relationsRoutes, { prefix: '/api/relations' });
