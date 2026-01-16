@@ -35,13 +35,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   
   // Signals - Event layer (L5)
   await app.register(signalsRoutes, { prefix: '/api/signals' });
+  
+  // Scores - Rating layer (L6)
+  await app.register(scoresRoutes, { prefix: '/api/scores' });
 
   // Future modules (uncomment as implemented)
   // await app.register(actorsRoutes, { prefix: '/api/actors' });
   // await app.register(entitiesRoutes, { prefix: '/api/entities' });
   // await app.register(walletsRoutes, { prefix: '/api/wallets' });
   // await app.register(tokensRoutes, { prefix: '/api/tokens' });
-  // await app.register(scoresRoutes, { prefix: '/api/scores' });
 
   app.log.info('Routes registered');
 }
