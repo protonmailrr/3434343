@@ -225,6 +225,29 @@ export function registerDefaultJobs(): void {
     console.log('[Scheduler] Build Bundles job registered');
   }
 
+  // ========== BUILD SIGNALS JOB (L4 → L5) ==========
+  if (env.INDEXER_ENABLED) {
+    // Run after build-bundles
+    const signalsInterval = env.INDEXER_INTERVAL_MS + 30000; // 30 seconds after indexer
+    
+    scheduler.register('build-signals', signalsInterval, async () => {
+      try {
+        const result = await buildSignals();
+        
+        if (result.signalsGenerated > 0) {
+          console.log(
+            `[Build Signals] Generated ${result.signalsGenerated} signals ` +
+            `from ${result.processedBundles} bundles (${result.duration}ms)`
+          );
+        }
+      } catch (err) {
+        console.error('[Build Signals] Job failed:', err);
+      }
+    });
+
+    console.log('[Scheduler] Build Signals job registered');
+  }
+
   // ========== FUTURE JOBS ==========
 
   // scheduler.register('recalculate-scores', 60_000, async () => {
@@ -265,6 +288,12 @@ export async function getIndexerStatus(): Promise<{
     byType: Record<string, number>;
     byWindow: Record<string, number>;
   } | null;
+  signalsStatus: {
+    totalSignals: number;
+    last24h: number;
+    unacknowledged: number;
+    byType: Record<string, number>;
+  } | null;
 }> {
   if (!ethereumRpc || !env.INDEXER_ENABLED) {
     return {
@@ -274,15 +303,17 @@ export async function getIndexerStatus(): Promise<{
       buildStatus: null,
       relationsStatus: null,
       bundlesStatus: null,
+      signalsStatus: null,
     };
   }
 
   try {
-    const [syncStatus, buildStatus, relationsStatus, bundlesStatus] = await Promise.all([
+    const [syncStatus, buildStatus, relationsStatus, bundlesStatus, signalsStatus] = await Promise.all([
       getSyncStatus(ethereumRpc),
       getBuildStatus(),
       getBuildRelationsStatus(),
       getBuildBundlesStatus(),
+      getBuildSignalsStatus(),
     ]);
 
     return {
@@ -292,6 +323,7 @@ export async function getIndexerStatus(): Promise<{
       buildStatus,
       relationsStatus,
       bundlesStatus,
+      signalsStatus,
     };
   } catch (err) {
     console.error('[Scheduler] Failed to get indexer status:', err);
@@ -302,6 +334,7 @@ export async function getIndexerStatus(): Promise<{
       buildStatus: null,
       relationsStatus: null,
       bundlesStatus: null,
+      signalsStatus: null,
     };
   }
 }
