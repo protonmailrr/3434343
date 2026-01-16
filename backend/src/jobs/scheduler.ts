@@ -352,6 +352,7 @@ export async function getIndexerStatus(): Promise<{
       relationsStatus,
       bundlesStatus,
       signalsStatus,
+      scoresStatus,
     };
   } catch (err) {
     console.error('[Scheduler] Failed to get indexer status:', err);
@@ -363,6 +364,7 @@ export async function getIndexerStatus(): Promise<{
       relationsStatus: null,
       bundlesStatus: null,
       signalsStatus: null,
+      scoresStatus: null,
     };
   }
 }
