@@ -28,10 +28,25 @@ const THRESHOLDS = {
   
   // Minimum confidence for signal
   MIN_CONFIDENCE: 0.5,
-  
-  // Dedup window (minutes)
-  DEDUP_WINDOW_MINUTES: 60,
 };
+
+// Dedup intervals by signal type (in minutes)
+const SIGNAL_DEDUP_INTERVALS: Record<SignalType, number> = {
+  'new_corridor': 24 * 60,           // 24h
+  'accumulation_start': 12 * 60,     // 12h
+  'accumulation_end': 12 * 60,
+  'distribution_start': 12 * 60,
+  'distribution_end': 12 * 60,
+  'bundle_change': 12 * 60,
+  'intensity_spike': 6 * 60,         // 6h
+  'intensity_drop': 6 * 60,
+  'wash_detected': 24 * 60,          // 24h
+  'wash_cleared': 24 * 60,
+  'rotation_shift': 12 * 60,
+  'corridor_dormant': 24 * 60,
+};
+
+const DEFAULT_DEDUP_MINUTES = 60;
 
 // Track previous bundle states in memory (for change detection)
 const bundleStateCache = new Map<string, {
