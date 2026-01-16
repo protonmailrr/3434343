@@ -177,6 +177,29 @@ export function registerDefaultJobs(): void {
     console.log('[Scheduler] Build Transfers job registered');
   }
 
+  // ========== BUILD RELATIONS JOB (L2 → L3) ==========
+  if (env.INDEXER_ENABLED) {
+    // Run after build-transfers to ensure transfers are available
+    const relationsInterval = env.INDEXER_INTERVAL_MS + 10000; // 10 seconds after indexer
+    
+    scheduler.register('build-relations', relationsInterval, async () => {
+      try {
+        const result = await buildRelations();
+        
+        if (result.processedTransfers > 0) {
+          console.log(
+            `[Build Relations] Created ${result.relationsCreated} relations, ` +
+            `updated ${result.relationsUpdated} from ${result.processedTransfers} transfers (${result.duration}ms)`
+          );
+        }
+      } catch (err) {
+        console.error('[Build Relations] Job failed:', err);
+      }
+    });
+
+    console.log('[Scheduler] Build Relations job registered');
+  }
+
   // ========== FUTURE JOBS ==========
 
   // scheduler.register('recalculate-scores', 60_000, async () => {
