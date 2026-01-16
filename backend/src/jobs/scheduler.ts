@@ -201,14 +201,33 @@ export function registerDefaultJobs(): void {
     console.log('[Scheduler] Build Relations job registered');
   }
 
+  // ========== BUILD BUNDLES JOB (L3 → L4) ==========
+  if (env.INDEXER_ENABLED) {
+    // Run after build-relations
+    const bundlesInterval = env.INDEXER_INTERVAL_MS + 20000; // 20 seconds after indexer
+    
+    scheduler.register('build-bundles', bundlesInterval, async () => {
+      try {
+        const result = await buildBundles();
+        
+        if (result.processedPairs > 0) {
+          console.log(
+            `[Build Bundles] Created ${result.bundlesCreated} bundles, ` +
+            `updated ${result.bundlesUpdated} from ${result.processedPairs} pairs (${result.duration}ms)`
+          );
+        }
+      } catch (err) {
+        console.error('[Build Bundles] Job failed:', err);
+      }
+    });
+
+    console.log('[Scheduler] Build Bundles job registered');
+  }
+
   // ========== FUTURE JOBS ==========
 
   // scheduler.register('recalculate-scores', 60_000, async () => {
   //   // await scoresService.recalculateAll();
-  // });
-
-  // scheduler.register('detect-bundles', 300_000, async () => {
-  //   // await bundlesService.detectNewBundles();
   // });
 
   // scheduler.register('cleanup-old-transfers', 3600_000, async () => {
