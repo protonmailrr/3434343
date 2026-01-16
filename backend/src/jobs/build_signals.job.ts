@@ -197,11 +197,12 @@ async function processBundleForSignals(
 
   // Check for duplicate signal
   const entityId = `${bundle.from}:${bundle.to}`;
+  const dedupMinutes = SIGNAL_DEDUP_INTERVALS[signalType] ?? DEFAULT_DEDUP_MINUTES;
   const exists = await signalsRepository.existsRecent(
     entityId,
     signalType,
     bundle.window,
-    THRESHOLDS.DEDUP_WINDOW_MINUTES
+    dedupMinutes
   );
 
   if (exists) {
