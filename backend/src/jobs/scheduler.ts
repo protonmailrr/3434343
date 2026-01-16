@@ -234,6 +234,11 @@ export async function getIndexerStatus(): Promise<{
     pendingLogs: number;
     totalTransfers: number;
   } | null;
+  relationsStatus: {
+    unprocessedTransfers: number;
+    totalRelations: number;
+    byWindow: Record<string, number>;
+  } | null;
 }> {
   if (!ethereumRpc || !env.INDEXER_ENABLED) {
     return {
@@ -241,13 +246,15 @@ export async function getIndexerStatus(): Promise<{
       rpcUrl: null,
       syncStatus: null,
       buildStatus: null,
+      relationsStatus: null,
     };
   }
 
   try {
-    const [syncStatus, buildStatus] = await Promise.all([
+    const [syncStatus, buildStatus, relationsStatus] = await Promise.all([
       getSyncStatus(ethereumRpc),
       getBuildStatus(),
+      getBuildRelationsStatus(),
     ]);
 
     return {
@@ -255,6 +262,7 @@ export async function getIndexerStatus(): Promise<{
       rpcUrl: env.INFURA_RPC_URL ? '[configured]' : null,
       syncStatus,
       buildStatus,
+      relationsStatus,
     };
   } catch (err) {
     console.error('[Scheduler] Failed to get indexer status:', err);
