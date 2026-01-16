@@ -58,13 +58,17 @@ export async function relationsRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get<{ Querystring: QueryRelationsInput }>(
     '/',
-    {
-      schema: {
-        querystring: QueryRelationsSchema,
-      },
-    },
     async (request) => {
-      const query = request.query;
+      // Parse and validate query params
+      const parseResult = QueryRelationsSchema.safeParse(request.query);
+      if (!parseResult.success) {
+        return {
+          ok: false,
+          error: 'VALIDATION_ERROR',
+          message: parseResult.error.message,
+        };
+      }
+      const query = parseResult.data;
 
       const result = await relationsService.query(
         {
