@@ -21,10 +21,20 @@ export function formatSignal(signal: ISignal) {
     entityType: signal.entityType,
     entityId: signal.entityId,
     signalType: signal.signalType,
+    // Legacy flat fields (for backward compatibility)
     prevBundleType: signal.prevBundleType,
     newBundleType: signal.newBundleType,
     prevIntensity: signal.prevIntensity,
     newIntensity: signal.newIntensity,
+    // Structured state (for UI diff, alerts templating, strategy)
+    prevState: {
+      bundleType: signal.prevBundleType,
+      intensity: signal.prevIntensity,
+    },
+    newState: {
+      bundleType: signal.newBundleType,
+      intensity: signal.newIntensity,
+    },
     confidence: signal.confidence,
     severityScore: signal.severityScore,
     severity: signal.severity,
