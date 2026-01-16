@@ -14,8 +14,7 @@ import {
 import { 
   IRelation, 
   RelationWindow, 
-  RelationChain,
-  WINDOW_DAYS 
+  RelationChain 
 } from './relations.model.js';
 
 /**
