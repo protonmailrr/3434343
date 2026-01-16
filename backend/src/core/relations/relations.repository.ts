@@ -3,7 +3,7 @@
  * Database operations for relations
  */
 import { RelationModel, IRelation, EntityType, Direction } from './relations.model.js';
-import { Types, FilterQuery, SortOrder } from 'mongoose';
+import { FilterQuery, SortOrder } from 'mongoose';
 
 export interface RelationFilter {
   from?: string;
