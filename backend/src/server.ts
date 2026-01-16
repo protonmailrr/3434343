@@ -12,8 +12,11 @@ async function main(): Promise<void> {
   // Build Fastify app
   const app = buildApp();
 
-  // Register scheduled jobs
+  // Register scheduled jobs (including ERC-20 indexer)
   registerDefaultJobs();
+
+  // Start scheduler jobs
+  scheduler.startAll();
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
@@ -36,6 +39,7 @@ async function main(): Promise<void> {
     console.log(`[Server] Backend started on port ${env.PORT}`);
     console.log(`[Server] Environment: ${env.NODE_ENV}`);
     console.log(`[Server] WebSocket: ${env.WS_ENABLED ? 'enabled' : 'disabled'}`);
+    console.log(`[Server] Indexer: ${env.INDEXER_ENABLED && env.INFURA_RPC_URL ? 'enabled' : 'disabled'}`);
   } catch (err) {
     app.log.error(err);
     process.exit(1);
