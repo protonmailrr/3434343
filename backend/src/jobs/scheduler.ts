@@ -300,6 +300,7 @@ export async function getIndexerStatus(): Promise<{
       syncStatus: null,
       buildStatus: null,
       relationsStatus: null,
+      bundlesStatus: null,
     };
   }
 }
