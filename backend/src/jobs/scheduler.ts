@@ -8,6 +8,7 @@ import { buildTransfersFromERC20, getBuildStatus } from './build_transfers.job.j
 import { buildRelations, getBuildRelationsStatus } from './build_relations.job.js';
 import { buildBundles, getBuildBundlesStatus } from './build_bundles.job.js';
 import { buildSignals, getBuildSignalsStatus } from './build_signals.job.js';
+import { buildScores, getBuildScoresStatus } from './build_scores.job.js';
 
 interface ScheduledJob {
   name: string;
