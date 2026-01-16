@@ -259,6 +259,11 @@ export async function getIndexerStatus(): Promise<{
     totalRelations: number;
     byWindow: Record<string, number>;
   } | null;
+  bundlesStatus: {
+    totalBundles: number;
+    byType: Record<string, number>;
+    byWindow: Record<string, number>;
+  } | null;
 }> {
   if (!ethereumRpc || !env.INDEXER_ENABLED) {
     return {
@@ -267,14 +272,16 @@ export async function getIndexerStatus(): Promise<{
       syncStatus: null,
       buildStatus: null,
       relationsStatus: null,
+      bundlesStatus: null,
     };
   }
 
   try {
-    const [syncStatus, buildStatus, relationsStatus] = await Promise.all([
+    const [syncStatus, buildStatus, relationsStatus, bundlesStatus] = await Promise.all([
       getSyncStatus(ethereumRpc),
       getBuildStatus(),
       getBuildRelationsStatus(),
+      getBuildBundlesStatus(),
     ]);
 
     return {
@@ -283,6 +290,7 @@ export async function getIndexerStatus(): Promise<{
       syncStatus,
       buildStatus,
       relationsStatus,
+      bundlesStatus,
     };
   } catch (err) {
     console.error('[Scheduler] Failed to get indexer status:', err);
