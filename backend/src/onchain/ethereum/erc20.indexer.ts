@@ -107,7 +107,7 @@ export async function syncERC20Transfers(rpc: EthereumRpc): Promise<SyncResult> 
   const startTime = Date.now();
 
   // Get current progress
-  const { lastBlock: syncedBlock, isNew } = await getSyncState(rpc);
+  const { lastBlock: syncedBlock } = await getSyncState(rpc);
   const latestBlock = await rpc.getBlockNumber();
 
   // Calculate block range
