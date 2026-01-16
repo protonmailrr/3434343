@@ -18,10 +18,6 @@ import {
   RelationDirection, 
   WINDOW_DAYS 
 } from '../core/relations/relations.model.js';
-import { SyncStateModel } from '../onchain/ethereum/sync_state.model.js';
-
-// Sync key for build relations job
-const SYNC_KEY = 'build_relations';
 
 // Batch size for processing transfers
 const BATCH_SIZE = 1000;
