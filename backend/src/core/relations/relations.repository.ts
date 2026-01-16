@@ -132,7 +132,7 @@ export class RelationsRepository {
         .sort(sortObj)
         .skip(pagination.offset)
         .limit(pagination.limit)
-        .lean(),
+        .lean<IRelation[]>(),
       RelationModel.countDocuments(query),
     ]);
 
@@ -161,7 +161,7 @@ export class RelationsRepository {
     return RelationModel.find(query)
       .sort({ densityScore: -1 })
       .limit(options.limit || 50)
-      .lean();
+      .lean<IRelation[]>();
   }
 
   /**
@@ -171,7 +171,7 @@ export class RelationsRepository {
     return RelationModel.find()
       .sort({ densityScore: -1 })
       .limit(limit)
-      .lean();
+      .lean<IRelation[]>();
   }
 
   /**
@@ -181,7 +181,7 @@ export class RelationsRepository {
     return RelationModel.find()
       .sort({ influenceWeight: -1 })
       .limit(limit)
-      .lean();
+      .lean<IRelation[]>();
   }
 
   /**
