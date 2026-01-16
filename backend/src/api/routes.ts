@@ -7,6 +7,7 @@ import { transfersRoutes } from '../core/transfers/transfers.routes.js';
 import { bundlesRoutes } from '../core/bundles/bundles.routes.js';
 import { signalsRoutes } from '../core/signals/signals.routes.js';
 import { scoresRoutes } from '../core/scores/scores.routes.js';
+import { strategyProfilesRoutes } from '../core/strategies/strategy_profiles.routes.js';
 
 // Future modules (uncomment as implemented)
 // import { actorsRoutes } from '../core/actors/actors.routes.js';
