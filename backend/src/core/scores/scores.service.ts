@@ -298,7 +298,7 @@ export class ScoresService {
     // Influence Score (0-100)
     const influenceScore = Math.min(100, Math.max(0,
       Math.log10(breakdown.followersCount + 1) * 20 +
-      breakdown.consistencyScore * 0.3 +
+      consistencyScore * 0.3 +
       (1 - breakdown.frontRunRatio) * 20 +
       breakdown.avgDensity * 0.2
     ));
