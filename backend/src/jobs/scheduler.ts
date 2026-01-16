@@ -273,6 +273,32 @@ export function registerDefaultJobs(): void {
     console.log('[Scheduler] Build Scores job registered');
   }
 
+  // ========== BUILD STRATEGY PROFILES JOB (L6 → L7) ==========
+  if (env.INDEXER_ENABLED) {
+    // Run every 5 minutes (strategies are not high-frequency)
+    const strategyInterval = 5 * 60 * 1000; // 5 minutes
+    
+    scheduler.register('build-strategy-profiles', strategyInterval, async () => {
+      try {
+        const result = await buildStrategyProfiles();
+        
+        if (result.profilesUpdated > 0) {
+          console.log(
+            `[Build Strategy Profiles] Updated ${result.profilesUpdated} profiles ` +
+            `for ${result.processedAddresses} addresses (${result.duration}ms)`
+          );
+          if (result.strategyShifts > 0) {
+            console.log(`[Build Strategy Profiles] Strategy shifts: ${result.strategyShifts}`);
+          }
+        }
+      } catch (err) {
+        console.error('[Build Strategy Profiles] Job failed:', err);
+      }
+    });
+
+    console.log('[Scheduler] Build Strategy Profiles job registered');
+  }
+
   // ========== FUTURE JOBS ==========
 
   // scheduler.register('cleanup-old-transfers', 3600_000, async () => {
